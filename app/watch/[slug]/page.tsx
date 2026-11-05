@@ -3,7 +3,7 @@ import Link from 'next/link';
 import WatchPlayer from '@/components/WatchPlayer';
 import Header from '@/components/Header';
 import Footer from '@/components/Footer';
-import { getChannelWithEpg, getCurrentEpg, getNextEpg, getDayEpg, channels, blogPosts } from '@/lib/store';
+import { getChannelWithEpg, getCurrentEpg, getNextEpg, getDayEpg, getRatings, channels, blogPosts } from '@/lib/store';
 
 export async function generateMetadata({ params }: { params: { slug: string } }) {
   const ch = getChannelWithEpg(params.slug);
@@ -45,7 +45,7 @@ export default async function WatchPage({ params }: { params: { slug: string } }
   const nextSlug = sorted[si + 1]?.slug;
   const related = sameCat.slice(0, 8);
   const relatedBlogs = Object.values(blogPosts).slice(0, 3);
-  const streams = [{ id: 0, name: 'Server 1', url: channel.stream_url }];
+  const streams = [{ id: 0, name: 'Server 1', url: channel.stream_url, sort_order: 0 }];
 
   return (
     <>
@@ -53,7 +53,7 @@ export default async function WatchPage({ params }: { params: { slug: string } }
       <main style={{ maxWidth: 1100, margin: '0 auto', padding: '0 16px' }}>
         <h1 style={{ color: '#fff', marginTop: 16 }}>{channel.name} Live Online Gratis</h1>
         <p style={{ color: '#8a93a6' }}>Acum: {currentEpg?.title || channel.epg_title} · Urmează: {nextEpg?.title || '—'} la {fmt(nextEpg?.start_time)}</p>
-        <WatchPlayer channel={channel} epg={epg} related={related} currentEpg={currentEpg} nextEpg={nextEpg} streams={streams} initialRating={{ count: 0, avg: 0, myRating: 0 }} blogPosts={relatedBlogs} prevSlug={prevSlug} nextSlug={nextSlug} />
+        <WatchPlayer channel={channel} epg={epg} related={related} currentEpg={currentEpg} nextEpg={nextEpg} streams={streams} initialRating={getRatings(channel.id)} blogPosts={relatedBlogs} prevSlug={prevSlug} nextSlug={nextSlug} />
         <aside style={{ marginTop: 32 }}>
           <h2 style={{ color: '#fff' }}>EPG — Programul zilei</h2>
           <ul style={{ listStyle: 'none', padding: 0, display: 'flex', flexDirection: 'column', gap: 6 }}>

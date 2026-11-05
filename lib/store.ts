@@ -85,7 +85,18 @@ export interface EpgEntry {
 // Raw seeds
 // ---------------------------------------------------------------------------
 
-export const channels: Channel[] = (channelsData as Channel[]).slice();
+/** Rewrite upstream logo paths (/api/uploads/… or /uploads/…) to local /logos/{basename}. */
+function localLogo(logo: string): string {
+  if (!logo) return logo;
+  if (logo.startsWith('/logos/')) return logo;
+  const base = logo.split('/').pop() || logo;
+  return `/logos/${base}`;
+}
+
+export const channels: Channel[] = (channelsData as Channel[]).map((c) => ({
+  ...c,
+  logo: localLogo(c.logo),
+}));
 
 export const categories: Category[] = (categoriesData as Category[]).slice();
 
@@ -123,7 +134,7 @@ export function getChannel(slugOrId: string | number): ChannelWithoutEpg | null 
   if (!ch) return null;
   ch.views = ch.views + 1;
   const { epg_title: _t, start_time: _s, end_time: _e, ...rest } = ch;
-  return { ...rest, stream_url: stripToken(ch.stream_url) };
+  return { ...rest, logo: localLogo(rest.logo), stream_url: stripToken(ch.stream_url) };
 }
 
 /**
@@ -136,6 +147,7 @@ export function getChannelWithEpg(slugOrId: string | number): Channel | null {
   const cur = getCurrentEpg(ch.id);
   return {
     ...ch,
+    logo: localLogo(ch.logo),
     epg_title: cur ? cur.title : ch.epg_title,
     start_time: cur ? cur.start_time : ch.start_time,
     end_time: cur ? cur.end_time : ch.end_time,
@@ -276,7 +288,7 @@ function toNowItem(ch: Channel): NowOnTvItem {
     id: ch.id,
     name: ch.name,
     slug: ch.slug,
-    logo: ch.logo,
+    logo: localLogo(ch.logo),
     views: ch.views,
     category_name: ch.category_name,
     category_color: ch.category_color,

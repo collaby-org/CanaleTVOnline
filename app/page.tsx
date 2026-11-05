@@ -1,23 +1,57 @@
 'use client';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import Header from '@/components/Header';
 import Footer from '@/components/Footer';
 import { useFakeViews, formatViews } from '@/lib/hooks';
 
 interface ChannelItem { id: number; name: string; slug: string; logo?: string; category_slug?: string; category_name?: string; category_icon?: string; category_color?: string; epg_title?: string; views?: number; start_time?: string; end_time?: string; }
 
-function ChannelCard({ c, fav, onFav }: { c: ChannelItem; fav: boolean; onFav: (slug: string) => void }) {
+function ChannelCard({ c, fav, onFav }: { c: ChannelItem; fav: boolean; onFav: (id: number) => void }) {
   const { formatted } = useFakeViews(c);
+  const router = useRouter();
+  const go = () => router.push(`/watch/${c.slug}`);
   return (
-    <div style={{ border: '1px solid #1f2430', borderRadius: 10, padding: 12, background: '#0d1017' }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
-        <span style={{ background: '#ff1e56', color: '#fff', fontSize: 11, padding: '2px 6px', borderRadius: 4 }}>🔴 LIVE</span>
-        <button onClick={() => onFav(c.slug)} aria-label="favorite" style={{ background: 'none', border: 'none', fontSize: 18, cursor: 'pointer', color: fav ? '#ff1e56' : '#3a4152' }}>{fav ? '❤️' : '🤍'}</button>
+    <div
+      onClick={go}
+      role="link"
+      tabIndex={0}
+      onKeyDown={(e) => { if (e.key === 'Enter') go(); }}
+      style={{ border: '1px solid #1f2430', borderRadius: 10, overflow: 'hidden', background: '#0d1017', cursor: 'pointer' }}
+    >
+      <div style={{ height: 4, background: c.category_color || 'transparent' }} />
+      <div style={{ padding: 12 }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+          <span className="badge-live">● LIVE</span>
+          <button
+            onClick={(e) => { e.stopPropagation(); onFav(c.id); }}
+            aria-label={fav ? 'Elimină de la favorite' : 'Adaugă la favorite'}
+            style={{ background: 'none', border: 'none', fontSize: 18, cursor: 'pointer', color: fav ? '#ff1e56' : '#3a4152' }}
+          >{fav ? '❤️' : '🤍'}</button>
+        </div>
+        {c.logo && (
+          <img src={c.logo} alt={c.name} width="100%" loading="lazy"
+            style={{ width: '100%', height: 64, objectFit: 'contain', borderRadius: 6, background: '#151a24', display: 'block' }} />
+        )}
+        <div style={{ color: '#fff', fontWeight: 700, fontSize: 16, marginTop: 8 }}>{c.name}</div>
+        <div style={{ color: '#8a93a6', fontSize: 13, marginTop: 4 }}>👁 {formatted} · {formatViews(c.views ?? 0)}</div>
+        <div style={{ color: '#d7dce6', fontSize: 13, marginTop: 4 }}>{c.epg_title || 'Program live'}</div>
       </div>
-      <Link href={`/watch/${c.slug}`} style={{ color: '#fff', textDecoration: 'none', fontWeight: 700, fontSize: 16 }}>{c.name}</Link>
-      <div style={{ color: '#8a93a6', fontSize: 13, marginTop: 4 }}>👁 {formatViews(c.views ?? 0)} · {formatted}</div>
-      <div style={{ color: '#d7dce6', fontSize: 13, marginTop: 4 }}>{c.epg_title || 'Program live'}</div>
+    </div>
+  );
+}
+
+function SkeletonGrid() {
+  return (
+    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill,minmax(200px,1fr))', gap: 12, marginTop: 24 }} aria-busy="true" aria-label="Se încarcă canalele">
+      {Array.from({ length: 8 }).map((_, i) => (
+        <div key={i} className="skeleton-card">
+          <div className="skeleton shimmer" style={{ height: 64, borderRadius: 6 }} />
+          <div className="skeleton shimmer" style={{ height: 16, width: '70%', marginTop: 10 }} />
+          <div className="skeleton shimmer" style={{ height: 12, width: '50%', marginTop: 8 }} />
+        </div>
+      ))}
     </div>
   );
 }
@@ -31,6 +65,12 @@ const FAQS = [
   { q: 'Cum caut un canal?', a: 'Tastează minim 2 caractere în câmpul de căutare sau folosește Ctrl+K pentru paleta de comenzi.' },
 ];
 
+function minsLeft(end?: string): string {
+  if (!end) return '';
+  const s = Math.max(0, Math.floor((new Date(end).getTime() - Date.now()) / 1000));
+  return `${Math.ceil(s / 60)}m`;
+}
+
 export default function Home() {
   const [cats, setCats] = useState<Array<{ slug: string; name: string; icon: string; color: string; channel_count: number }>>([]);
   const [activeCat, setActiveCat] = useState('all');
@@ -38,7 +78,7 @@ export default function Home() {
   const [search, setSearch] = useState('');
   const [searchInput, setSearchInput] = useState('');
   const [searchResults, setSearchResults] = useState<ChannelItem[]>([]);
-  const [favs, setFavs] = useState<string[]>([]);
+  const [favs, setFavs] = useState<number[]>([]);
   const [hero, setHero] = useState<ChannelItem | null>(null);
   const [countdown, setCountdown] = useState('');
   const [loading, setLoading] = useState(true);
@@ -47,6 +87,12 @@ export default function Home() {
   const [recentSearches, setRecentSearches] = useState<string[]>([]);
   const [showPwa, setShowPwa] = useState(false);
   const [deferred, setDeferred] = useState<any>(null);
+  const router = useRouter();
+  const surprise = () => {
+    if (channels.length === 0) return;
+    const c = channels[Math.floor(Math.random() * channels.length)];
+    router.push(`/watch/${c.slug}`);
+  };
 
   useEffect(() => {
     try {
@@ -58,8 +104,14 @@ export default function Home() {
       else { localStorage.setItem('tv_streak', JSON.stringify({ count: 1, lastDate: today })); setStreak(1); }
       setRecent(JSON.parse(localStorage.getItem('tv_recently_watched') || '[]'));
       setRecentSearches(JSON.parse(localStorage.getItem('tv_recent_searches') || '[]'));
-      setFavs(JSON.parse(localStorage.getItem('tv_favorites') || '[]'));
+      const rawFavs = JSON.parse(localStorage.getItem('tv_favorites') || '[]');
+      setFavs((Array.isArray(rawFavs) ? rawFavs : []).map(Number).filter((n: number) => Number.isFinite(n)));
       if (localStorage.getItem('pwa_banner_dismissed') !== '1') setShowPwa(true);
+      const params = new URLSearchParams(window.location.search);
+      const cat = params.get('category');
+      const q = params.get('search');
+      if (cat) setActiveCat(cat);
+      if (q) { setSearchInput(q); setSearch(q); }
     } catch {}
   }, []);
 
@@ -110,16 +162,10 @@ export default function Home() {
   useEffect(() => { load(); }, [load]);
 
   useEffect(() => {
-    if (!hero) return;
-    const tick = () => {
-      if (hero.end_time) {
-        const s = Math.max(0, Math.floor((new Date(hero.end_time).getTime() - Date.now()) / 1000));
-        const h = Math.floor(s / 3600), m = Math.floor((s % 3600) / 60), ss = s % 60;
-        setCountdown(`${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}:${String(ss).padStart(2, '0')}`);
-      }
-    };
+    if (!hero?.end_time) return;
+    const tick = () => setCountdown(minsLeft(hero.end_time));
     tick();
-    const t = setInterval(tick, 1000);
+    const t = setInterval(tick, 30000);
     return () => clearInterval(t);
   }, [hero]);
 
@@ -129,8 +175,8 @@ export default function Home() {
     return () => window.removeEventListener('keydown', h);
   }, []);
 
-  const toggleFav = (slug: string) => {
-    const next = favs.includes(slug) ? favs.filter((s) => s !== slug) : [...favs, slug];
+  const toggleFav = (id: number) => {
+    const next = favs.includes(id) ? favs.filter((s) => s !== id) : [...favs, id];
     setFavs(next);
     localStorage.setItem('tv_favorites', JSON.stringify(next));
   };
@@ -149,8 +195,12 @@ export default function Home() {
       <main style={{ maxWidth: 1200, margin: '0 auto', padding: '0 16px' }}>
         <section style={{ marginTop: 16, border: '1px solid #1f2430', borderRadius: 12, padding: 20, background: '#0d1017' }}>
           <h1 style={{ color: '#fff', margin: '0 0 8px' }}>CanaleTV Live — TV Online Gratuit</h1>
-          <p style={{ color: '#8a93a6' }}>IN DIRECT ACUM {hero ? `— ${hero.name}` : ''} {countdown && <span>· se încheie în {countdown}</span>}</p>
-          {hero && <Link href={`/watch/${hero.slug}`} style={{ display: 'inline-block', marginTop: 8, background: '#10b981', color: '#04130d', padding: '8px 14px', borderRadius: 8, textDecoration: 'none', fontWeight: 700 }}>▶ Vizionează {hero.name} acum</Link>}
+          <p style={{ color: '#8a93a6' }}>IN DIRECT ACUM{hero ? ` — ${hero.name}` : ''}{countdown && <span> · se încheie în {countdown}</span>}</p>
+          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginTop: 10 }}>
+            {hero && <Link href={`/watch/${hero.slug}`} style={{ background: '#10b981', color: '#04130d', padding: '8px 14px', borderRadius: 8, textDecoration: 'none', fontWeight: 700 }}>▶ Urmărește Live</Link>}
+            {hero && <Link href={`/multistream?a=${hero.slug}`} style={{ background: '#151a24', color: '#fff', border: '1px solid #1f2430', padding: '8px 14px', borderRadius: 8, textDecoration: 'none' }}>▣ Mini-Player</Link>}
+            <button onClick={surprise} style={{ background: '#f59e0b', color: '#1a1205', border: 'none', borderRadius: 8, padding: '8px 14px', cursor: 'pointer', fontWeight: 700 }}>🎲 Surpriză</button>
+          </div>
           <form onSubmit={searchSubmit} style={{ marginTop: 16, display: 'flex', gap: 8 }}>
             <input id="search-input" value={searchInput} onChange={(e) => { setSearchInput(e.target.value); setSearch(e.target.value.trim().length >= 2 ? e.target.value.trim() : ''); }} placeholder="Caută canal... (Ctrl+K)" style={{ flex: 1, background: '#151a24', color: '#fff', border: '1px solid #1f2430', borderRadius: 8, padding: 10 }} />
             <button type="submit" style={{ background: '#10b981', color: '#04130d', border: 'none', borderRadius: 8, padding: '10px 16px', cursor: 'pointer' }}>Caută</button>
@@ -160,7 +210,13 @@ export default function Home() {
               {searchResults.map((c) => <Link key={c.slug} href={`/watch/${c.slug}`} style={{ color: '#34d399', fontSize: 13 }}>{c.name}</Link>)}
             </div>
           )}
-          {recentSearches.length > 0 && <p style={{ color: '#6b7486', fontSize: 12, marginTop: 8 }}>Căutări recente: {recentSearches.join(', ')}</p>}
+          {recentSearches.length > 0 && (
+            <p style={{ color: '#6b7486', fontSize: 12, marginTop: 8 }}>Căutări recente:{' '}
+              {recentSearches.map((s, i) => (
+                <button key={i} onClick={() => { setSearchInput(s); setSearch(s); }} style={{ background: 'none', border: 'none', color: '#34d399', cursor: 'pointer', fontSize: 12, padding: 0, marginRight: 4 }}>{s}</button>
+              ))}
+            </p>
+          )}
           <p style={{ color: '#f59e0b', fontSize: 13, marginTop: 8 }}>🔥 Serie zilnică: {streak} {streak >= 100 ? '💎' : streak >= 30 ? '🥇' : streak >= 7 ? '🥈' : streak >= 3 ? '🥉' : ''}</p>
         </section>
 
@@ -171,18 +227,21 @@ export default function Home() {
 
         {favs.length > 0 && <section style={{ marginTop: 20 }}><h2 style={{ color: '#fff' }}>❤️ Favoritele tale</h2>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill,minmax(200px,1fr))', gap: 12 }}>
-            {channels.filter((c) => favs.includes(c.slug)).map((c) => <ChannelCard key={c.slug} c={c} fav onFav={toggleFav} />)}
+            {channels.filter((c) => favs.includes(c.id)).map((c) => <ChannelCard key={c.slug} c={c} fav onFav={toggleFav} />)}
           </div></section>}
 
-        {recent.length > 0 && <section style={{ marginTop: 20 }}><h2 style={{ color: '#fff' }}>Vizualizate recent</h2><p style={{ color: '#8a93a6', fontSize: 13 }}>{recent.join(' · ')}</p></section>}
+        {recent.length > 0 && <section style={{ marginTop: 20 }}><h2 style={{ color: '#fff' }}>Vizualizate recent</h2>
+          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+            {recent.map((s) => <Link key={s} href={`/watch/${s}`} style={{ color: '#34d399', fontSize: 13, border: '1px solid #1f2430', borderRadius: 999, padding: '4px 10px', background: '#151a24' }}>{s}</Link>)}
+          </div></section>}
 
-        {loading ? <p style={{ color: '#8a93a6', marginTop: 24 }}>Se încarcă...</p> : grouped.map(([slug, list]) => {
+        {loading ? <SkeletonGrid /> : grouped.map(([slug, list]) => {
           const cat = cats.find((c) => c.slug === slug);
           return (
             <section key={slug} style={{ marginTop: 24 }}>
               <h2 style={{ color: '#fff' }}>{cat ? `${cat.icon} ${cat.name}` : slug}</h2>
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill,minmax(200px,1fr))', gap: 12 }}>
-                {list.map((c) => <ChannelCard key={c.slug} c={c} fav={favs.includes(c.slug)} onFav={toggleFav} />)}
+                {list.map((c) => <ChannelCard key={c.slug} c={c} fav={favs.includes(c.id)} onFav={toggleFav} />)}
               </div>
             </section>
           );
@@ -191,8 +250,8 @@ export default function Home() {
         <section style={{ marginTop: 40 }}>
           <h2 style={{ color: '#fff' }}>Întrebări frecvente</h2>
           {FAQS.map((f) => (
-            <details key={f.q} style={{ border: '1px solid #1f2430', borderRadius: 8, padding: 12, marginBottom: 8, background: '#0d1017' }}>
-              <summary style={{ color: '#fff', cursor: 'pointer' }}>{f.q}</summary>
+            <details key={f.q} className="faq-item" style={{ border: '1px solid #1f2430', borderRadius: 8, padding: 12, marginBottom: 8, background: '#0d1017' }}>
+              <summary style={{ color: '#fff', cursor: 'pointer', listStyle: 'none' }}><span className="faq-marker">▶</span> {f.q}</summary>
               <p style={{ color: '#8a93a6' }}>{f.a}</p>
             </details>
           ))}

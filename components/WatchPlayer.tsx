@@ -318,7 +318,7 @@ export default function WatchPlayer({
               } catch {
                 /* ignore */
               }
-              if (code !== 403 || already) {
+              if (Number(code) !== 403 || already) {
                 try {
                   hls.startLoad();
                 } catch {
@@ -1613,7 +1613,7 @@ export default function WatchPlayer({
             📰 {isRo ? `Știri și articole despre ${channel.name}` : `News & Articles about ${channel.name}`}
           </h2>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(240px, 1fr))', gap: 8 }}>
-            {blogPosts.slice(0, 4).map((b) => (
+            {blogPosts.slice(0, 3).map((b) => (
               <Link key={b.slug} href={`/blog/${b.slug}`} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '9px 12px', borderRadius: 10, background: '#12141a', border: '1px solid rgba(255,255,255,0.06)' }}>
                 <span style={{ fontSize: 15, flexShrink: 0 }}>📰</span>
                 <span style={{ fontSize: 12, fontWeight: 600, color: '#e2e8f0', lineHeight: 1.35, flex: 1 }}>{b.title}</span>
