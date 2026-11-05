@@ -7,7 +7,9 @@ import { getChannelsWithFreshUrls } from '../../../lib/store';
  * tv.playitforme.online entries carry the upstream-minted
  * ?token={13digit-ms}-{64hex-sha256} HMAC. Never mint tokens locally — a
  * locally fabricated token fails upstream HMAC validation and the proxy
- * answers 403 forever. Falls back to the seed list on upstream failure.
+ * answers 403 forever. Fallback (see sanitizeStreamUrl in lib/store.ts):
+ * tv-family → naked seed, rd/arwen → seed as-is (stripped naked). The stale
+ * seed token (`1793831492238-…`) is never served.
  */
 export async function GET(req: Request) {
   const params = new URL(req.url).searchParams;

@@ -202,10 +202,30 @@ function isTvProxyUrl(url: string): boolean {
 }
 
 /**
+ * Pick a safe stream URL for display/playback — never the stale seed token.
+ * - tv family + fresh upstream token → fresh (upstream-minted, HMAC-valid)
+ * - tv family + fresh null/empty → naked seed (stripToken drops the stale
+ *   `1793831492238-…` token baked into data/channels.json)
+ * - rd / arwen (non-tv) → seed as-is (already naked upstream; stripped
+ *   defensively so no token can leak through a fresh value either)
+ */
+export function sanitizeStreamUrl(
+  ch: { stream_url: string },
+  fresh?: string | null
+): string {
+  if (fresh) {
+    return isTvProxyUrl(ch.stream_url) ? fresh : stripToken(fresh);
+  }
+  if (isTvProxyUrl(ch.stream_url)) return stripToken(ch.stream_url);
+  return ch.stream_url;
+}
+
+/**
  * Fresh, upstream-minted stream URL for playback.
  * - tv.playitforme.online → upstream bulk stream_url (tokenized, HMAC-valid)
  * - rd.playitforme.online / arwen1.panaka1 → seed URL direct (naked upstream too)
- * - unknown slug / upstream failure → null (caller falls back to seed)
+ * - unknown slug / upstream failure → null (caller falls back via
+ *   sanitizeStreamUrl: tv-family naked, rd/arwen seed as-is)
  */
 export async function getFreshStreamUrl(
   slug: string | number
@@ -226,7 +246,8 @@ export async function getFreshStreamUrl(
  */
 export async function getChannelsWithFreshUrls(): Promise<Channel[]> {
   const items = await loadUpstreamChannels();
-  if (!items) return channels;
+  // Upstream unavailable: serve naked seeds, never the stale seed token.
+  if (!items) return channels.map((c) => ({ ...c, stream_url: sanitizeStreamUrl(c, null) }));
   const bySlug = new Map<string, UpstreamChannel>(
     items.filter((i) => i.slug).map((i) => [i.slug as string, i])
   );
@@ -235,13 +256,14 @@ export async function getChannelsWithFreshUrls(): Promise<Channel[]> {
   );
   return channels.map((c) => {
     const up = bySlug.get(c.slug) ?? byId.get(c.id);
-    if (!up) return c;
+    // tv-family ← fresh upstream token, fallback naked; rd/arwen ← seed as-is
+    // (stripped naked). No stale seed token ever leaves this function.
     return {
       ...c,
-      stream_url: up.stream_url || c.stream_url,
-      epg_title: up.epg_title || c.epg_title,
-      start_time: up.start_time || c.start_time,
-      end_time: up.end_time || c.end_time,
+      stream_url: sanitizeStreamUrl(c, up?.stream_url ?? null),
+      epg_title: up?.epg_title || c.epg_title,
+      start_time: up?.start_time || c.start_time,
+      end_time: up?.end_time || c.end_time,
     };
   });
 }
@@ -273,6 +295,9 @@ export function getChannelWithEpg(slugOrId: string | number): Channel | null {
   return {
     ...ch,
     logo: localLogo(ch.logo),
+    // Never hand out the stale seed token: naked until the caller overlays a
+    // fresh upstream URL via sanitizeStreamUrl (see watch page).
+    stream_url: stripToken(ch.stream_url),
     epg_title: cur ? cur.title : ch.epg_title,
     start_time: cur ? cur.start_time : ch.start_time,
     end_time: cur ? cur.end_time : ch.end_time,

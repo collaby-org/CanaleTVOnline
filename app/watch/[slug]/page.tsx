@@ -3,7 +3,7 @@ import Link from 'next/link';
 import WatchPlayer from '@/components/WatchPlayer';
 import Header from '@/components/Header';
 import Footer from '@/components/Footer';
-import { getChannelWithEpg, getCurrentEpg, getNextEpg, getDayEpg, getRatings, getFreshStreamUrl, channels, blogPosts } from '@/lib/store';
+import { getChannelWithEpg, getCurrentEpg, getNextEpg, getDayEpg, getRatings, getFreshStreamUrl, getChannelsWithFreshUrls, sanitizeStreamUrl, blogPosts } from '@/lib/store';
 
 export async function generateMetadata({ params }: { params: { slug: string } }) {
   const ch = getChannelWithEpg(params.slug);
@@ -36,15 +36,20 @@ export default async function WatchPage({ params }: { params: { slug: string } }
   if (!channel) notFound();
   // Fresh upstream-minted (tokenized) stream URL for playback; the seed URL
   // carries a stale HMAC token and dies with 403. See lib/store.ts
-  // getFreshStreamUrl. Falls back to the seed URL on upstream failure.
+  // getFreshStreamUrl. On upstream failure sanitizeStreamUrl falls back to
+  // the naked URL (tv-family) / seed as-is (rd/arwen) — never the stale
+  // seed token.
   const fresh = await getFreshStreamUrl(params.slug);
-  const playerChannel = fresh ? { ...channel, stream_url: fresh } : channel;
+  const playerChannel = { ...channel, stream_url: sanitizeStreamUrl(channel, fresh) };
   const epg = getDayEpg(channel.id);
   const currentEpg = getCurrentEpg(channel.id);
   const nextEpg = getNextEpg(channel.id);
-  const sameCat = channels.filter((c) => c.category_slug === channel.category_slug && c.slug !== channel.slug);
+  // Related/sidebar entries come from the fresh-URL merged list (same 15s
+  // upstream cache), so no stale seed token leaks into the HTML via `related`.
+  const freshList = await getChannelsWithFreshUrls();
+  const sameCat = freshList.filter((c) => c.category_slug === channel.category_slug && c.slug !== channel.slug);
   const idx = sameCat.findIndex((c) => c.slug === channel.slug);
-  const sorted = channels.filter((c) => c.category_slug === channel.category_slug);
+  const sorted = freshList.filter((c) => c.category_slug === channel.category_slug);
   const si = sorted.findIndex((c) => c.slug === channel.slug);
   const prevSlug = sorted[si - 1]?.slug;
   const nextSlug = sorted[si + 1]?.slug;
