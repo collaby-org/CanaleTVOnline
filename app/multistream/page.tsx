@@ -1,14 +1,22 @@
 import Header from '@/components/Header';
 import Footer from '@/components/Footer';
 import Multistream from '@/components/Multistream';
-import { channels } from '@/lib/store';
+import { channels as seedChannels, getChannelsWithFreshUrls } from '@/lib/store';
 
 export const metadata = {
   title: 'Multistream — Vizionează 2-4 canale TV în același timp | CanaleTV Live',
   description: 'Multistream CanaleTV Live: vizionează până la 4 canale TV live simultan, gratuit, fără înregistrare.',
 };
 
-export default function MultistreamPage() {
+export default async function MultistreamPage() {
+  // Fresh upstream tokenized URLs for playback (seed URLs carry a stale HMAC
+  // token and 403). Falls back to the seed list on upstream failure.
+  let channels = seedChannels;
+  try {
+    channels = await getChannelsWithFreshUrls();
+  } catch {
+    /* keep seed */
+  }
   return (
     <>
       <Header />

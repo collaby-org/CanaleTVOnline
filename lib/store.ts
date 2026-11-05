@@ -122,6 +122,131 @@ function findChannel(slugOrId: string | number): Channel | undefined {
 }
 
 // ---------------------------------------------------------------------------
+// Upstream stream-URL delegation (token minting)
+// ---------------------------------------------------------------------------
+//
+// Root cause of permanent 403s: the old bulk route minted LOCAL fake
+// `?token={13digit-ms}-{64hex}` values and appended them to the seed
+// `tv.playitforme.online/api/proxy/{uuid}` URLs. Upstream validates that
+// token as a server-side HMAC over the proxy uuid, so every fake token is
+// rejected — and the stale token already baked into the seed URL is rejected
+// too once it expires. Minting tokens locally can never work.
+//
+// Upstream exposes the minted credentials in two shapes:
+// - Bulk    GET https://canaletvlive.online/api/channels
+//           → bare JSON array of 83 channels; the tv.playitforme.online
+//           stream_url entries are tokenized
+//           `.../api/proxy/{uuid}?token={13digit-ms}-{64hex-sha256}`,
+//           freshly minted on every call.
+// - Single  GET https://canaletvlive.online/api/channels/{slug}
+//           → stream_url WITHOUT ?token= (naked). The real watch page never
+//           plays this: its SSR `streams` come from the tokenized bulk URL
+//           (see reversed-engineered notes §4a). The single endpoint is
+//           naked by API convention.
+// So for playback we delegate minting to upstream and take the bulk URL.
+// rd.playitforme.online + arwen1.panaka1.cfd URLs are naked in the bulk
+// response too (identical to the seeds), so they are served straight from
+// the local list with no upstream call.
+
+const UPSTREAM_CHANNELS_URL = 'https://canaletvlive.online/api/channels';
+const UPSTREAM_BULK_TTL_MS = 15000;
+
+interface UpstreamChannel {
+  id?: number;
+  slug?: string;
+  stream_url?: string;
+  epg_title?: string;
+  start_time?: string;
+  end_time?: string;
+}
+
+let upstreamBulkCache: { at: number; items: UpstreamChannel[] } | null = null;
+
+/**
+ * Fetch the upstream bulk channel list (cached 15s, 3s timeout, catch).
+ * On failure returns the stale cache if any, else null.
+ */
+async function loadUpstreamChannels(): Promise<UpstreamChannel[] | null> {
+  const now = Date.now();
+  if (upstreamBulkCache && now - upstreamBulkCache.at < UPSTREAM_BULK_TTL_MS) {
+    return upstreamBulkCache.items;
+  }
+  try {
+    const ctrl = new AbortController();
+    const timer = setTimeout(() => ctrl.abort(), 3000);
+    // cache:'no-store' bypasses the Next Data Cache (a cached body would
+    // serve a minutes-old upstream token); `_nc=` mirrors upstream's own
+    // 403-reload pattern and defeats edge caching of the bulk JSON.
+    const res = await fetch(`${UPSTREAM_CHANNELS_URL}?_nc=${Date.now()}`, {
+      cache: 'no-store',
+      signal: ctrl.signal,
+    });
+    clearTimeout(timer);
+    if (!res.ok) return upstreamBulkCache?.items ?? null;
+    const data = (await res.json()) as UpstreamChannel[] | { items?: unknown };
+    const items = (Array.isArray(data) ? data : data?.items) as
+      | UpstreamChannel[]
+      | undefined;
+    if (!Array.isArray(items) || items.length === 0) {
+      return upstreamBulkCache?.items ?? null;
+    }
+    upstreamBulkCache = { at: now, items };
+    return items;
+  } catch {
+    return upstreamBulkCache?.items ?? null;
+  }
+}
+
+function isTvProxyUrl(url: string): boolean {
+  return url.includes('tv.playitforme.online');
+}
+
+/**
+ * Fresh, upstream-minted stream URL for playback.
+ * - tv.playitforme.online → upstream bulk stream_url (tokenized, HMAC-valid)
+ * - rd.playitforme.online / arwen1.panaka1 → seed URL direct (naked upstream too)
+ * - unknown slug / upstream failure → null (caller falls back to seed)
+ */
+export async function getFreshStreamUrl(
+  slug: string | number
+): Promise<string | null> {
+  const ch = findChannel(slug);
+  if (!ch) return null;
+  if (!isTvProxyUrl(ch.stream_url)) return ch.stream_url;
+  const items = await loadUpstreamChannels();
+  if (!items) return null;
+  const up = items.find((c) => c.slug === ch.slug || c.id === ch.id);
+  return up?.stream_url || null;
+}
+
+/**
+ * Seed channels with stream_url + epg fields merged from the upstream bulk
+ * response (matched by slug, then id). Falls back to the seed list on
+ * upstream failure.
+ */
+export async function getChannelsWithFreshUrls(): Promise<Channel[]> {
+  const items = await loadUpstreamChannels();
+  if (!items) return channels;
+  const bySlug = new Map<string, UpstreamChannel>(
+    items.filter((i) => i.slug).map((i) => [i.slug as string, i])
+  );
+  const byId = new Map<number, UpstreamChannel>(
+    items.filter((i) => typeof i.id === 'number').map((i) => [i.id as number, i])
+  );
+  return channels.map((c) => {
+    const up = bySlug.get(c.slug) ?? byId.get(c.id);
+    if (!up) return c;
+    return {
+      ...c,
+      stream_url: up.stream_url || c.stream_url,
+      epg_title: up.epg_title || c.epg_title,
+      start_time: up.start_time || c.start_time,
+      end_time: up.end_time || c.end_time,
+    };
+  });
+}
+
+// ---------------------------------------------------------------------------
 // Channel accessors
 // ---------------------------------------------------------------------------
 
