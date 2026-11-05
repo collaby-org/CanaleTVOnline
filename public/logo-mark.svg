@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="Canale TV Online logo">
+  <rect x="2" y="6" width="60" height="42" rx="10" fill="#0b1020"/>
+  <rect x="2" y="6" width="60" height="42" rx="10" fill="none" stroke="#38bdf8" stroke-width="3"/>
+  <path d="M26 18 L46 27 L26 36 Z" fill="#f43f5e"/>
+  <line x1="18" y1="54" x2="46" y2="54" stroke="#38bdf8" stroke-width="3" stroke-linecap="round"/>
+  <line x1="32" y1="48" x2="32" y2="54" stroke="#38bdf8" stroke-width="3" stroke-linecap="round"/>
+</svg>
