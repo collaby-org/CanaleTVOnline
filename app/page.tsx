@@ -1,42 +1,88 @@
 'use client';
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState, type FormEvent } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import Header from '@/components/Header';
-import Footer from '@/components/Footer';
-import { useFakeViews, formatViews } from '@/lib/hooks';
+import { useFakeViews } from '@/lib/hooks';
 
-interface ChannelItem { id: number; name: string; slug: string; logo?: string; category_slug?: string; category_name?: string; category_icon?: string; category_color?: string; epg_title?: string; views?: number; start_time?: string; end_time?: string; }
+interface ChannelItem {
+  id: number;
+  name: string;
+  slug: string;
+  logo?: string;
+  category_slug?: string;
+  category_name?: string;
+  category_icon?: string;
+  category_color?: string;
+  epg_title?: string;
+  views?: number;
+  start_time?: string;
+  end_time?: string;
+  is_featured?: number;
+}
+
+interface CategoryItem {
+  slug: string;
+  name: string;
+  icon: string;
+  color: string;
+  channel_count: number;
+}
 
 function ChannelCard({ c, fav, onFav }: { c: ChannelItem; fav: boolean; onFav: (id: number) => void }) {
   const { formatted } = useFakeViews(c);
   const router = useRouter();
-  const go = () => router.push(`/watch/${c.slug}`);
+  const go = () => {
+    router.push(`/watch/${c.slug}`);
+  };
+  const featured = Number((c as { is_featured?: unknown }).is_featured) === 1;
   return (
     <div
+      className="channel-card"
       onClick={go}
       role="link"
       tabIndex={0}
-      onKeyDown={(e) => { if (e.key === 'Enter') go(); }}
-      style={{ border: '1px solid #1f2430', borderRadius: 10, overflow: 'hidden', background: '#0d1017', cursor: 'pointer' }}
+      onKeyDown={(e) => {
+        if (e.key === 'Enter') go();
+      }}
+      aria-label={`Urmărește ${c.name} live`}
     >
-      <div style={{ height: 4, background: c.category_color || 'transparent' }} />
-      <div style={{ padding: 12 }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
-          <span className="badge-live">● LIVE</span>
-          <button
-            onClick={(e) => { e.stopPropagation(); onFav(c.id); }}
-            aria-label={fav ? 'Elimină de la favorite' : 'Adaugă la favorite'}
-            style={{ background: 'none', border: 'none', fontSize: 18, cursor: 'pointer', color: fav ? '#ff1e56' : '#3a4152' }}
-          >{fav ? '❤️' : '🤍'}</button>
-        </div>
-        {c.logo && (
-          <img src={c.logo} alt={c.name} width="100%" loading="lazy"
-            style={{ width: '100%', height: 64, objectFit: 'contain', borderRadius: 6, background: '#151a24', display: 'block' }} />
+      <div className="channel-media">
+        {c.logo ? (
+          <img src={c.logo} alt={c.name} loading="lazy" />
+        ) : (
+          <span style={{ color: '#8a93a6', fontWeight: 800, fontSize: 28 }}>{c.name?.slice(0, 2)}</span>
         )}
-        <div style={{ color: '#fff', fontWeight: 700, fontSize: 16, marginTop: 8 }}>{c.name}</div>
-        <div style={{ color: '#8a93a6', fontSize: 13, marginTop: 4 }}>👁 {formatted} · {formatViews(c.views ?? 0)}</div>
-        <div style={{ color: '#d7dce6', fontSize: 13, marginTop: 4 }}>{c.epg_title || 'Program live'}</div>
+        <span className="badge-live" style={{ position: 'absolute', top: 8, left: 8 }}>
+          ● LIVE
+        </span>
+        <span style={{ position: 'absolute', top: 8, right: 8, display: 'flex', gap: 6, alignItems: 'center' }}>
+          {featured && (
+            <span aria-label="Canal recomandat" title="Recomandat" style={{ fontSize: 15, lineHeight: 1 }}>
+              👑
+            </span>
+          )}
+          <button
+            className="fav-btn"
+            onClick={(e) => {
+              e.stopPropagation();
+              onFav(c.id);
+            }}
+            aria-label={fav ? 'Elimină de la favorite' : 'Adaugă la favorite'}
+            title={fav ? 'Elimină de la favorite' : 'Adaugă la favorite'}
+          >
+            {fav ? '❤️' : '🤍'}
+          </button>
+        </span>
+      </div>
+      <div className="channel-bar" style={{ background: `linear-gradient(90deg, ${c.category_color || '#10b981'}, #f59e0b)` }} />
+      <div className="channel-body">
+        <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between' }}>
+          <div className="channel-name">{c.name}</div>
+          <span className="channel-views" title={`${formatted} telespectatori`}>
+            ◆ {formatted}
+          </span>
+        </div>
+        <div className="channel-epg">{c.epg_title || 'Program live'}</div>
       </div>
     </div>
   );
@@ -44,10 +90,10 @@ function ChannelCard({ c, fav, onFav }: { c: ChannelItem; fav: boolean; onFav: (
 
 function SkeletonGrid() {
   return (
-    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill,minmax(200px,1fr))', gap: 12, marginTop: 24 }} aria-busy="true" aria-label="Se încarcă canalele">
+    <div className="channel-grid" style={{ marginTop: 24 }} aria-busy="true" aria-label="Se încarcă canalele">
       {Array.from({ length: 8 }).map((_, i) => (
         <div key={i} className="skeleton-card">
-          <div className="skeleton shimmer" style={{ height: 64, borderRadius: 6 }} />
+          <div className="skeleton shimmer" style={{ height: 96, borderRadius: 8 }} />
           <div className="skeleton shimmer" style={{ height: 16, width: '70%', marginTop: 10 }} />
           <div className="skeleton shimmer" style={{ height: 12, width: '50%', marginTop: 8 }} />
         </div>
@@ -65,14 +111,26 @@ const FAQS = [
   { q: 'Cum caut un canal?', a: 'Tastează minim 2 caractere în câmpul de căutare sau folosește Ctrl+K pentru paleta de comenzi.' },
 ];
 
-function minsLeft(end?: string): string {
-  if (!end) return '';
-  const s = Math.max(0, Math.floor((new Date(end).getTime() - Date.now()) / 1000));
-  return `${Math.ceil(s / 60)}m`;
+const HERO_SLUGS = ['protv', 'antena-1', 'kanal-d', 'tvr1', 'prima-tv'];
+
+function minsLeftNum(end?: string): number | null {
+  if (!end) return null;
+  const ms = new Date(end).getTime() - Date.now();
+  if (Number.isNaN(ms)) return null;
+  return Math.max(0, Math.ceil(ms / 60000));
+}
+
+function progressPct(start?: string, end?: string): number {
+  if (!start || !end) return 0;
+  const s = new Date(start).getTime();
+  const e = new Date(end).getTime();
+  const n = Date.now();
+  if ([s, e].some(Number.isNaN) || e <= s) return 0;
+  return Math.min(100, Math.max(0, ((n - s) / (e - s)) * 100));
 }
 
 export default function Home() {
-  const [cats, setCats] = useState<Array<{ slug: string; name: string; icon: string; color: string; channel_count: number }>>([]);
+  const [cats, setCats] = useState<CategoryItem[]>([]);
   const [activeCat, setActiveCat] = useState('all');
   const [channels, setChannels] = useState<ChannelItem[]>([]);
   const [search, setSearch] = useState('');
@@ -80,29 +138,41 @@ export default function Home() {
   const [searchResults, setSearchResults] = useState<ChannelItem[]>([]);
   const [favs, setFavs] = useState<number[]>([]);
   const [hero, setHero] = useState<ChannelItem | null>(null);
-  const [countdown, setCountdown] = useState('');
+  const [topLive, setTopLive] = useState<ChannelItem[]>([]);
+  const [nowMap, setNowMap] = useState<Record<string, ChannelItem>>({});
   const [loading, setLoading] = useState(true);
   const [streak, setStreak] = useState(1);
   const [recent, setRecent] = useState<string[]>([]);
   const [recentSearches, setRecentSearches] = useState<string[]>([]);
   const [showPwa, setShowPwa] = useState(false);
   const [deferred, setDeferred] = useState<any>(null);
+  const [viewMode, setViewMode] = useState<'categorized' | 'grid'>('categorized');
   const router = useRouter();
+
   const surprise = () => {
-    if (channels.length === 0) return;
-    const c = channels[Math.floor(Math.random() * channels.length)];
+    const pool = channels.length > 0 ? channels : topLive;
+    if (pool.length === 0) return;
+    const c = pool[Math.floor(Math.random() * pool.length)];
     router.push(`/watch/${c.slug}`);
   };
 
   useEffect(() => {
     try {
-      const now = new Date(); const today = now.toISOString().slice(0, 10);
+      const now = new Date();
+      const today = now.toISOString().slice(0, 10);
       const y = new Date(now.getTime() - 86400000).toISOString().slice(0, 10);
       const s = JSON.parse(localStorage.getItem('tv_streak') || '{"count":1,"lastDate":""}');
       if (s.lastDate === today) setStreak(s.count || 1);
-      else if (s.lastDate === y) { const ns = { count: (s.count || 1) + 1, lastDate: today }; localStorage.setItem('tv_streak', JSON.stringify(ns)); setStreak(ns.count); }
-      else { localStorage.setItem('tv_streak', JSON.stringify({ count: 1, lastDate: today })); setStreak(1); }
-      setRecent(JSON.parse(localStorage.getItem('tv_recently_watched') || '[]'));
+      else if (s.lastDate === y) {
+        const ns = { count: (s.count || 1) + 1, lastDate: today };
+        localStorage.setItem('tv_streak', JSON.stringify(ns));
+        setStreak(ns.count);
+      } else {
+        localStorage.setItem('tv_streak', JSON.stringify({ count: 1, lastDate: today }));
+        setStreak(1);
+      }
+      const rw = JSON.parse(localStorage.getItem('tv_recently_watched') || '[]');
+      setRecent(Array.isArray(rw) ? rw.map(String) : []);
       setRecentSearches(JSON.parse(localStorage.getItem('tv_recent_searches') || '[]'));
       const rawFavs = JSON.parse(localStorage.getItem('tv_favorites') || '[]');
       setFavs((Array.isArray(rawFavs) ? rawFavs : []).map(Number).filter((n: number) => Number.isFinite(n)));
@@ -111,12 +181,19 @@ export default function Home() {
       const cat = params.get('category');
       const q = params.get('search');
       if (cat) setActiveCat(cat);
-      if (q) { setSearchInput(q); setSearch(q); }
+      if (q) {
+        setSearchInput(q);
+        setSearch(q);
+      }
     } catch {}
   }, []);
 
   useEffect(() => {
-    const onPrompt = (e: any) => { e.preventDefault(); setDeferred(e); setShowPwa(true); };
+    const onPrompt = (e: any) => {
+      e.preventDefault();
+      setDeferred(e);
+      setShowPwa(true);
+    };
     window.addEventListener('beforeinstallprompt', onPrompt);
     return () => window.removeEventListener('beforeinstallprompt', onPrompt);
   }, []);
@@ -124,11 +201,15 @@ export default function Home() {
   useEffect(() => {
     const t = setTimeout(async () => {
       const q = searchInput.trim();
-      if (q.length < 2) { setSearchResults([]); return; }
+      if (q.length < 2) {
+        setSearchResults([]);
+        return;
+      }
       try {
         const r = await fetch(`/api/channels?search=${encodeURIComponent(q)}`, { cache: 'no-store' });
         const d = await r.json();
-        setSearchResults((Array.isArray(d) ? d : d.channels || []).slice(0, 6));
+        const arr = Array.isArray(d) ? d : d.items || d.channels || [];
+        setSearchResults((arr as ChannelItem[]).slice(0, 6));
         const list = JSON.parse(localStorage.getItem('tv_recent_searches') || '[]');
         const next = [q, ...list.filter((x: string) => x !== q)].slice(0, 5);
         localStorage.setItem('tv_recent_searches', JSON.stringify(next));
@@ -145,32 +226,48 @@ export default function Home() {
       const q = new URLSearchParams();
       if (activeCat !== 'all') q.set('category', activeCat);
       if (search) q.set('search', search);
-      const [ch, catsR, top] = await Promise.all([
+      const [ch, catsR, top, now] = await Promise.all([
         fetch(`/api/channels${q.toString() ? '?' + q.toString() : ''}`, { cache: 'no-store', signal: ctrl.signal }).then((r) => r.json()),
-        fetch('/api/categories', { cache: 'no-store', signal: ctrl.signal }).then((r) => r.json()),
+        fetch('/api/categories', { cache: 'no-store', signal: ctrl.signal }).then((r) => r.json()).catch(() => []),
         fetch('/api/top-live', { cache: 'no-store', signal: ctrl.signal }).then((r) => r.json()).catch(() => []),
+        fetch('/api/now-on-tv', { cache: 'no-store', signal: ctrl.signal }).then((r) => r.json()).catch(() => []),
       ]);
-      setChannels(Array.isArray(ch) ? ch : ch.channels || []);
-      setCats(Array.isArray(catsR) ? catsR : catsR.categories || []);
-      const first = Array.isArray(top) && top[0];
-      if (first) setHero(first);
+      const list = Array.isArray(ch) ? ch : ch.items || ch.channels || [];
+      setChannels(list as ChannelItem[]);
+      const catList = Array.isArray(catsR) ? catsR : catsR.categories || [];
+      setCats(catList as CategoryItem[]);
+      const topArr = (Array.isArray(top) ? top : []) as ChannelItem[];
+      setTopLive(topArr);
+      const map: Record<string, ChannelItem> = {};
+      for (const item of ((Array.isArray(now) ? now : []) as ChannelItem[])) map[item.slug] = item;
+      for (const item of topArr) map[item.slug] = item;
+      for (const item of (list as ChannelItem[])) map[item.slug] = item;
+      setNowMap(map);
+      if (topArr.length > 0) setHero((prev) => prev || topArr.find((c) => c.slug === 'protv') || topArr[0]);
     } catch {}
     setLoading(false);
     clearTimeout(to);
   }, [activeCat, search]);
 
-  useEffect(() => { load(); }, [load]);
+  useEffect(() => {
+    load();
+  }, [load]);
 
   useEffect(() => {
     if (!hero?.end_time) return;
-    const tick = () => setCountdown(minsLeft(hero.end_time));
+    const tick = () => setHero((h) => (h ? { ...h } : h));
     tick();
     const t = setInterval(tick, 30000);
     return () => clearInterval(t);
   }, [hero]);
 
   useEffect(() => {
-    const h = (e: KeyboardEvent) => { if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'k') { e.preventDefault(); document.getElementById('search-input')?.focus(); } };
+    const h = (e: KeyboardEvent) => {
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'k') {
+        e.preventDefault();
+        document.getElementById('search-input')?.focus();
+      }
+    };
     window.addEventListener('keydown', h);
     return () => window.removeEventListener('keydown', h);
   }, []);
@@ -181,104 +278,352 @@ export default function Home() {
     localStorage.setItem('tv_favorites', JSON.stringify(next));
   };
 
+  const clearRecent = () => {
+    try {
+      localStorage.removeItem('tv_recently_watched');
+    } catch {}
+    setRecent([]);
+  };
+
+  const searchSubmit = (e: FormEvent) => {
+    e.preventDefault();
+    setSearch(searchInput.trim());
+  };
+
+  const heroTabs = useMemo(() => {
+    if (topLive.length === 0) return [];
+    const bySlug = new Map(topLive.map((c) => [c.slug, c]));
+    const ordered = HERO_SLUGS.map((s) => bySlug.get(s)).filter(Boolean) as ChannelItem[];
+    return ordered.length > 0 ? ordered : topLive.slice(0, 5);
+  }, [topLive]);
+
   const grouped = useMemo(() => {
     const m = new Map<string, ChannelItem[]>();
-    for (const c of channels) { const k = c.category_slug || 'generale'; if (!m.has(k)) m.set(k, []); m.get(k)!.push(c); }
+    for (const c of channels) {
+      const k = c.category_slug || 'generale';
+      if (!m.has(k)) m.set(k, []);
+      m.get(k)!.push(c);
+    }
     return [...m.entries()];
   }, [channels]);
 
-  const searchSubmit = (e: React.FormEvent) => { e.preventDefault(); setSearch(searchInput.trim()); };
+  const totalAll = useMemo(() => {
+    const sum = cats.reduce((a, c) => a + (c.channel_count || 0), 0);
+    if (sum > 0) return sum;
+    return channels.length > 0 ? channels.length : 83;
+  }, [cats, channels.length]);
+
+  const mins = hero ? minsLeftNum(hero.end_time) : null;
+  const pct = hero ? progressPct(hero.start_time, hero.end_time) : 0;
+
+  const showGrouped = viewMode === 'categorized' && activeCat === 'all' && !search;
 
   return (
-    <>
-      <Header />
-      <main style={{ maxWidth: 1200, margin: '0 auto', padding: '0 16px' }}>
-        <section style={{ marginTop: 16, border: '1px solid #1f2430', borderRadius: 12, padding: 20, background: '#0d1017' }}>
-          <h1 style={{ color: '#fff', margin: '0 0 8px' }}>CanaleTV Live — TV Online Gratuit</h1>
-          <p style={{ color: '#8a93a6' }}>IN DIRECT ACUM{hero ? ` — ${hero.name}` : ''}{countdown && <span> · se încheie în {countdown}</span>}</p>
-          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginTop: 10 }}>
-            {hero && <Link href={`/watch/${hero.slug}`} style={{ background: '#10b981', color: '#04130d', padding: '8px 14px', borderRadius: 8, textDecoration: 'none', fontWeight: 700 }}>▶ Urmărește Live</Link>}
-            {hero && <Link href={`/multistream?a=${hero.slug}`} style={{ background: '#151a24', color: '#fff', border: '1px solid #1f2430', padding: '8px 14px', borderRadius: 8, textDecoration: 'none' }}>▣ Mini-Player</Link>}
-            <button onClick={surprise} style={{ background: '#f59e0b', color: '#1a1205', border: 'none', borderRadius: 8, padding: '8px 14px', cursor: 'pointer', fontWeight: 700 }}>🎲 Surpriză</button>
+    <main className="page-wrap" style={{ paddingBottom: 8 }}>
+      {/* HERO */}
+      <section className="hero-card" style={{ marginTop: 16, padding: 20, position: 'relative' }}>
+        <div className="hero-card-inner" style={{ position: 'relative', padding: 4, display: 'flex', gap: 18, flexWrap: 'wrap' }}>
+          <div
+            style={{
+              width: 88,
+              height: 88,
+              flexShrink: 0,
+              background: '#151a24',
+              border: '1px solid rgba(255,255,255,0.07)',
+              borderRadius: 12,
+              display: 'grid',
+              placeItems: 'center',
+              overflow: 'hidden',
+            }}
+          >
+            {hero?.logo ? (
+              <img src={hero.logo} alt={hero.name} width={88} height={88} style={{ width: 88, height: 88, objectFit: 'contain', padding: 8 }} />
+            ) : (
+              <span style={{ color: '#8a93a6', fontWeight: 800, fontSize: 22 }}>📺</span>
+            )}
           </div>
-          <form onSubmit={searchSubmit} style={{ marginTop: 16, display: 'flex', gap: 8 }}>
-            <input id="search-input" value={searchInput} onChange={(e) => { setSearchInput(e.target.value); setSearch(e.target.value.trim().length >= 2 ? e.target.value.trim() : ''); }} placeholder="Caută canal... (Ctrl+K)" style={{ flex: 1, background: '#151a24', color: '#fff', border: '1px solid #1f2430', borderRadius: 8, padding: 10 }} />
-            <button type="submit" style={{ background: '#10b981', color: '#04130d', border: 'none', borderRadius: 8, padding: '10px 16px', cursor: 'pointer' }}>Caută</button>
-          </form>
-          {searchResults.length > 0 && (
-            <div style={{ marginTop: 8, display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-              {searchResults.map((c) => <Link key={c.slug} href={`/watch/${c.slug}`} style={{ color: '#34d399', fontSize: 13 }}>{c.name}</Link>)}
+
+          <div style={{ flex: 1, minWidth: 260 }}>
+            <div className="hero-live-line">
+              <span className="badge-live">● LIVE</span>
+              <span>
+                IN DIRECT ACUM <strong>{hero ? hero.name : '—'}</strong>
+                {mins !== null && hero && (
+                  <span>
+                    {' '}
+                    · <span className="mins">{mins}m rămase</span>
+                  </span>
+                )}
+              </span>
+              <span style={{ color: '#8a93a6', fontWeight: 400 }}>· {hero?.epg_title ? '' : ''}</span>
             </div>
-          )}
-          {recentSearches.length > 0 && (
-            <p style={{ color: '#6b7486', fontSize: 12, marginTop: 8 }}>Căutări recente:{' '}
-              {recentSearches.map((s, i) => (
-                <button key={i} onClick={() => { setSearchInput(s); setSearch(s); }} style={{ background: 'none', border: 'none', color: '#34d399', cursor: 'pointer', fontSize: 12, padding: 0, marginRight: 4 }}>{s}</button>
-              ))}
+            <h1 className="hero-epg-title" style={{ marginTop: 8 }}>
+              {hero ? hero.epg_title || 'Program live' : 'Se încarcă programul live…'}
+            </h1>
+            <div className="hero-progress" style={{ marginTop: 10 }} aria-label="Progres program curent" role="progressbar" aria-valuenow={Math.round(pct)} aria-valuemin={0} aria-valuemax={100}>
+              <div className="hero-progress-fill" style={{ width: `${pct}%` }} />
+            </div>
+            <p style={{ color: '#8a93a6', fontSize: 13, margin: '6px 0 0' }}>
+              {hero
+                ? `Acum la ${hero.name} · ${hero.category_name || ''}${mins !== null ? ` · se încheie în ${mins}m` : ''}`
+                : 'TV Online Gratuit — cele mai populare canale din România'}
             </p>
-          )}
-          <p style={{ color: '#f59e0b', fontSize: 13, marginTop: 8 }}>🔥 Serie zilnică: {streak} {streak >= 100 ? '💎' : streak >= 30 ? '🥇' : streak >= 7 ? '🥈' : streak >= 3 ? '🥉' : ''}</p>
-        </section>
 
-        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginTop: 16 }}>
-          <button onClick={() => setActiveCat('all')} style={{ background: activeCat === 'all' ? '#10b981' : '#151a24', color: activeCat === 'all' ? '#04130d' : '#fff', border: '1px solid #1f2430', borderRadius: 999, padding: '6px 12px', cursor: 'pointer' }}>Toate ({channels.length})</button>
-          {cats.map((c) => <button key={c.slug} onClick={() => setActiveCat(c.slug)} style={{ background: activeCat === c.slug ? '#10b981' : '#151a24', color: activeCat === c.slug ? '#04130d' : '#fff', border: '1px solid #1f2430', borderRadius: 999, padding: '6px 12px', cursor: 'pointer' }}>{c.icon} {c.name} ({c.channel_count})</button>)}
+            {heroTabs.length > 0 && (
+              <div className="hero-tabs" style={{ marginTop: 12 }}>
+                {heroTabs.map((t) => (
+                  <button key={t.slug} className={hero?.slug === t.slug ? 'hero-tab hero-tab-active' : 'hero-tab'} onClick={() => setHero(t)} type="button">
+                    {t.name}
+                  </button>
+                ))}
+              </div>
+            )}
+
+            <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', marginTop: 14 }}>
+              {hero && (
+                <Link className="btn-primary" href={`/watch/${hero.slug}`}>
+                  ▶ Urmărește Live
+                </Link>
+              )}
+              {hero && (
+                <Link className="btn-ghost" href={`/multistream?a=${hero.slug}`}>
+                  ⚡ Mini-Player
+                </Link>
+              )}
+              <button className="btn-gold" onClick={surprise} type="button">
+                🏆 Surpriză
+              </button>
+            </div>
+            <p style={{ color: '#f59e0b', fontSize: 13, margin: '10px 0 0', fontWeight: 700 }}>
+              🔥 Serie zilnică: {streak} {streak >= 100 ? '💎' : streak >= 30 ? '🥇' : streak >= 7 ? '🥈' : streak >= 3 ? '🥉' : ''}
+            </p>
+          </div>
         </div>
+      </section>
 
-        {favs.length > 0 && <section style={{ marginTop: 20 }}><h2 style={{ color: '#fff' }}>❤️ Favoritele tale</h2>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill,minmax(200px,1fr))', gap: 12 }}>
-            {channels.filter((c) => favs.includes(c.id)).map((c) => <ChannelCard key={c.slug} c={c} fav onFav={toggleFav} />)}
-          </div></section>}
+      {/* SEARCH */}
+      <section style={{ marginTop: 16 }}>
+        <form onSubmit={searchSubmit} style={{ display: 'flex', gap: 8 }}>
+          <input
+            id="search-input"
+            value={searchInput}
+            onChange={(e) => {
+              setSearchInput(e.target.value);
+              const v = e.target.value.trim();
+              setSearch(v.length >= 2 ? v : '');
+            }}
+            placeholder="Caută canal... (Ctrl+K)"
+            aria-label="Caută canal"
+            style={{ flex: 1, background: '#0f1520', color: '#e8ecf4', border: '1px solid rgba(255,255,255,0.07)', borderRadius: 10, padding: '11px 14px', outline: 'none', fontSize: 14 }}
+          />
+          <button type="submit" className="btn-primary">
+            Caută
+          </button>
+        </form>
+        {searchResults.length > 0 && (
+          <div style={{ marginTop: 8, display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+            {searchResults.map((c) => (
+              <Link key={c.slug} href={`/watch/${c.slug}`} style={{ color: '#34d399', fontSize: 13 }}>
+                {c.name}
+              </Link>
+            ))}
+          </div>
+        )}
+        {recentSearches.length > 0 && (
+          <p style={{ color: '#6b7486', fontSize: 12, marginTop: 8 }}>
+            Căutări recente:{' '}
+            {recentSearches.map((s, i) => (
+              <button
+                key={i}
+                onClick={() => {
+                  setSearchInput(s);
+                  setSearch(s);
+                }}
+                style={{ background: 'none', border: 'none', color: '#34d399', cursor: 'pointer', fontSize: 12, padding: 0, marginRight: 4 }}
+              >
+                {s}
+              </button>
+            ))}
+          </p>
+        )}
+      </section>
 
-        {recent.length > 0 && <section style={{ marginTop: 20 }}><h2 style={{ color: '#fff' }}>Vizualizate recent</h2>
-          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-            {recent.map((s) => <Link key={s} href={`/watch/${s}`} style={{ color: '#34d399', fontSize: 13, border: '1px solid #1f2430', borderRadius: 999, padding: '4px 10px', background: '#151a24' }}>{s}</Link>)}
-          </div></section>}
+      {/* VIZIONATE RECENT */}
+      {recent.length > 0 && (
+        <section style={{ marginTop: 16 }} aria-label="Vizualizate recent">
+          <div className="recent-bar">
+            <span className="recent-label">VIZIONATE RECENT</span>
+            {recent.slice(0, 8).map((slug) => {
+              const ch = nowMap[slug];
+              return (
+                <Link key={slug} className="recent-chip" href={`/watch/${slug}`}>
+                  {ch?.logo && <img src={ch.logo} alt="" width={24} height={24} style={{ objectFit: 'contain', background: '#151a24', borderRadius: 6 }} />}
+                  <span>{ch ? ch.name : slug}</span>
+                </Link>
+              );
+            })}
+            <button className="recent-clear" onClick={clearRecent} type="button">
+              Șterge
+            </button>
+          </div>
+        </section>
+      )}
 
-        {loading ? <SkeletonGrid /> : grouped.map(([slug, list]) => {
+      {/* CATEGORY PILLS */}
+      <section style={{ marginTop: 16 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', flex: 1 }}>
+            <button className={activeCat === 'all' ? 'cat-chip cat-chip-active' : 'cat-chip'} onClick={() => setActiveCat('all')} type="button">
+              🗂️ Toate <span className="count-bubble">{totalAll}</span>
+            </button>
+            {cats
+              .filter((c) => c.channel_count > 0)
+              .map((c) => (
+                <button key={c.slug} className={activeCat === c.slug ? 'cat-chip cat-chip-active' : 'cat-chip'} onClick={() => setActiveCat(c.slug)} type="button">
+                  {c.icon} {c.name} <span className="count-bubble">{c.channel_count}</span>
+                </button>
+              ))}
+          </div>
+          <div style={{ display: 'flex', gap: 8, flexShrink: 0 }}>
+            <button className={viewMode === 'categorized' ? 'view-toggle view-toggle-active' : 'view-toggle'} onClick={() => setViewMode('categorized')} type="button">
+              Categorii
+            </button>
+            <button className={viewMode === 'grid' ? 'view-toggle view-toggle-active' : 'view-toggle'} onClick={() => setViewMode('grid')} type="button">
+              Grilă
+            </button>
+          </div>
+        </div>
+      </section>
+
+      {favs.length > 0 && channels.filter((c) => favs.includes(c.id)).length > 0 && (
+        <section style={{ marginTop: 24 }}>
+          <div className="section-head">
+            <h2 className="section-title">
+              ❤️ Favoritele tale <span className="section-count">{channels.filter((c) => favs.includes(c.id)).length}</span>
+            </h2>
+          </div>
+          <div className="channel-grid" style={{ marginTop: 12 }}>
+            {channels
+              .filter((c) => favs.includes(c.id))
+              .map((c) => (
+                <ChannelCard key={c.slug} c={c} fav onFav={toggleFav} />
+              ))}
+          </div>
+        </section>
+      )}
+
+      {loading ? (
+        <SkeletonGrid />
+      ) : showGrouped ? (
+        grouped.map(([slug, list]) => {
           const cat = cats.find((c) => c.slug === slug);
           return (
-            <section key={slug} style={{ marginTop: 24 }}>
-              <h2 style={{ color: '#fff' }}>{cat ? `${cat.icon} ${cat.name}` : slug}</h2>
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill,minmax(200px,1fr))', gap: 12 }}>
-                {list.map((c) => <ChannelCard key={c.slug} c={c} fav={favs.includes(c.id)} onFav={toggleFav} />)}
+            <section key={slug} style={{ marginTop: 28 }}>
+              <div className="section-head">
+                <h2 className="section-title">
+                  {cat ? `${cat.icon} ${cat.name}` : slug} <span className="section-count">{list.length}</span>
+                </h2>
+                <Link className="section-link" href={`/categorie/${cat ? cat.slug : slug}`}>
+                  Vezi toate →
+                </Link>
+              </div>
+              <div className="channel-grid" style={{ marginTop: 12 }}>
+                {list.map((c) => (
+                  <ChannelCard key={c.slug} c={c} fav={favs.includes(c.id)} onFav={toggleFav} />
+                ))}
               </div>
             </section>
           );
-        })}
-
-        <section style={{ marginTop: 40 }}>
-          <h2 style={{ color: '#fff' }}>Întrebări frecvente</h2>
-          {FAQS.map((f) => (
-            <details key={f.q} className="faq-item" style={{ border: '1px solid #1f2430', borderRadius: 8, padding: 12, marginBottom: 8, background: '#0d1017' }}>
-              <summary style={{ color: '#fff', cursor: 'pointer', listStyle: 'none' }}><span className="faq-marker">▶</span> {f.q}</summary>
-              <p style={{ color: '#8a93a6' }}>{f.a}</p>
-            </details>
-          ))}
-        </section>
-
-        <section style={{ marginTop: 32 }}>
-          <h2 style={{ color: '#fff' }}>Secțiuni utile</h2>
-          <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap', color: '#34d399' }}>
-            <Link href="/ghid-tv" style={{ color: '#34d399' }}>Ghid TV</Link>
-            <Link href="/azi" style={{ color: '#34d399' }}>Azi</Link>
-            <Link href="/maine" style={{ color: '#34d399' }}>Mâine</Link>
-            <Link href="/meci-live" style={{ color: '#34d399' }}>Meci Live</Link>
-            <Link href="/program-saptamana" style={{ color: '#34d399' }}>Program Săptămână</Link>
-            <Link href="/harta-tv" style={{ color: '#34d399' }}>Harta TV</Link>
-            <Link href="/blog" style={{ color: '#34d399' }}>Blog</Link>
+        })
+      ) : (
+        <section style={{ marginTop: 28 }}>
+          <div className="section-head">
+            <h2 className="section-title">
+              {activeCat === 'all' ? '🗂️ Toate' : cats.find((c) => c.slug === activeCat)?.name || activeCat} <span className="section-count">{channels.length}</span>
+            </h2>
+            {activeCat !== 'all' && (
+              <Link className="section-link" href={`/categorie/${activeCat}`}>
+                Vezi toate →
+              </Link>
+            )}
           </div>
+          {channels.length === 0 ? (
+            <p style={{ color: '#8a93a6', marginTop: 12 }}>Niciun canal găsit.</p>
+          ) : (
+            <div className="channel-grid" style={{ marginTop: 12 }}>
+              {channels.map((c) => (
+                <ChannelCard key={c.slug} c={c} fav={favs.includes(c.id)} onFav={toggleFav} />
+              ))}
+            </div>
+          )}
         </section>
+      )}
 
-        {showPwa && (
-          <div style={{ position: 'fixed', bottom: 16, left: '50%', transform: 'translateX(-50%)', background: '#0d1017', border: '1px solid #10b981', borderRadius: 10, padding: 14, display: 'flex', gap: 10, zIndex: 60 }}>
-            <span style={{ color: '#fff', fontSize: 13 }}>📲 Instalează aplicația CanaleTV</span>
-            {deferred && <button onClick={() => { deferred.prompt(); }} style={{ background: '#10b981', border: 'none', borderRadius: 6, padding: '4px 10px', cursor: 'pointer' }}>Instalează</button>}
-            <button onClick={() => { setShowPwa(false); localStorage.setItem('pwa_banner_dismissed', '1'); }} style={{ background: '#151a24', color: '#fff', border: '1px solid #1f2430', borderRadius: 6, padding: '4px 10px', cursor: 'pointer' }}>Închide</button>
-          </div>
-        )}
-      </main>
-      <Footer />
-    </>
+      <section style={{ marginTop: 40 }}>
+        <h2 style={{ color: '#fff', margin: '0 0 12px' }}>Întrebări frecvente</h2>
+        {FAQS.map((f) => (
+          <details key={f.q} className="faq-item" style={{ border: '1px solid rgba(255,255,255,0.06)', borderRadius: 10, padding: 14, marginBottom: 8, background: '#0d1017' }}>
+            <summary style={{ color: '#fff', cursor: 'pointer', listStyle: 'none' }}>
+              <span className="faq-marker">▶</span> {f.q}
+            </summary>
+            <p style={{ color: '#8a93a6', margin: '8px 0 0' }}>{f.a}</p>
+          </details>
+        ))}
+      </section>
+
+      <section style={{ marginTop: 32 }}>
+        <h2 style={{ color: '#fff', margin: '0 0 12px' }}>Secțiuni utile</h2>
+        <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap' }}>
+          <Link href="/ghid-tv" style={{ color: '#34d399' }}>
+            Ghid TV
+          </Link>
+          <Link href="/azi" style={{ color: '#34d399' }}>
+            Azi
+          </Link>
+          <Link href="/maine" style={{ color: '#34d399' }}>
+            Mâine
+          </Link>
+          <Link href="/meci-live" style={{ color: '#34d399' }}>
+            Meci Live
+          </Link>
+          <Link href="/program-saptamana" style={{ color: '#34d399' }}>
+            Program Săptămână
+          </Link>
+          <Link href="/harta-tv" style={{ color: '#34d399' }}>
+            Harta TV
+          </Link>
+          <Link href="/blog" style={{ color: '#34d399' }}>
+            Blog
+          </Link>
+        </div>
+      </section>
+
+      {showPwa && (
+        <div style={{ position: 'fixed', bottom: 16, left: '50%', transform: 'translateX(-50%)', background: '#0d1017', border: '1px solid #10b981', borderRadius: 12, padding: 14, display: 'flex', gap: 10, zIndex: 60, alignItems: 'center', maxWidth: 'calc(100vw - 24px)' }}>
+          <span style={{ color: '#fff', fontSize: 13 }}>📲 Instalează aplicația CanaleTV</span>
+          {deferred && (
+            <button
+              onClick={() => {
+                deferred.prompt?.();
+              }}
+              style={{ background: '#10b981', border: 'none', borderRadius: 8, padding: '4px 10px', cursor: 'pointer', color: '#04130d', fontWeight: 700 }}
+            >
+              Instalează
+            </button>
+          )}
+          <button
+            onClick={() => {
+              setShowPwa(false);
+              try {
+                localStorage.setItem('pwa_banner_dismissed', '1');
+              } catch {}
+            }}
+            style={{ background: '#151a24', color: '#fff', border: '1px solid rgba(255,255,255,0.07)', borderRadius: 8, padding: '4px 10px', cursor: 'pointer' }}
+          >
+            Închide
+          </button>
+        </div>
+      )}
+    </main>
   );
 }
