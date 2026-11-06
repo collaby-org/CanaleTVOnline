@@ -912,9 +912,9 @@ export default function WatchPlayer({
 
       {/* header row: prev/next + badges + actions */}
       <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10, flexWrap: 'wrap' }}>
-        {prevSlug && (
+        {isValidSlug(prev_slug) && (
           <Link
-            href={`/watch/${prevSlug}`}
+            href={`/watch/${prev_slug}`}
             title={isRo ? 'Canalul anterior' : 'Previous channel'}
             style={hdrBtn}
           >
@@ -958,9 +958,9 @@ export default function WatchPlayer({
         <button type="button" onClick={toggleTheater} style={{ ...hdrBtn, color: theater ? '#10b981' : undefined }} title={isRo ? 'Theater (T)' : 'Theater (T)'}>
           🎬 <span>Theater</span>
         </button>
-        {nextSlug && (
+        {isValidSlug(next_slug) && (
           <Link
-            href={`/watch/${nextSlug}`}
+            href={`/watch/${next_slug}`}
             title={isRo ? 'Canalul următor' : 'Next channel'}
             style={hdrBtn}
           >
@@ -1330,7 +1330,9 @@ export default function WatchPlayer({
             />
           </div>
           <div style={{ maxHeight: 300, overflowY: 'auto', padding: 8, display: 'flex', flexDirection: 'column', gap: 5 }}>
-            {drawerResults.map((c) => {
+            {drawerResults
+              .filter((c) => isValidSlug(c.slug))
+              .map((c) => {
               const active = c.slug === channel.slug;
               return (
                 <Link key={c.slug} href={`/watch/${c.slug}`} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '8px 10px', borderRadius: 11, background: active ? 'rgba(16,185,129,0.18)' : 'rgba(255,255,255,0.04)', border: '1px solid ' + (active ? 'rgba(16,185,129,0.5)' : 'rgba(255,255,255,0.06)'), textDecoration: 'none' }}>
@@ -1609,7 +1611,10 @@ export default function WatchPlayer({
             </h2>
           </div>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(145px, 1fr))', gap: 8 }}>
-            {related.slice(0, 8).map((c) => (
+            {related
+              .filter((c) => isValidSlug(c.slug))
+              .slice(0, 8)
+              .map((c) => (
               <Link key={c.slug} href={`/watch/${c.slug}`} title={`${c.name} live`} style={{ display: 'flex', alignItems: 'center', gap: 9, padding: '8px 10px', background: '#12141a', border: '1px solid rgba(255,255,255,0.06)', borderRadius: 11 }}>
                 <span style={{ width: 40, height: 28, background: '#08090c', borderRadius: 7, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, border: '1px solid rgba(255,255,255,0.06)', overflow: 'hidden' }}>
                   {c.logo ? (
