@@ -6,6 +6,23 @@ import AdSlot from '@/components/AdSlot';
 import { useLang } from '@/components/Providers';
 import { T } from '@/lib/i18n';
 
+// Only valid slug strings may reach /watch/ hrefs. This blocks polluted
+// values like "[object Object]" (stringified channel objects) which made
+// Next throw "Dynamic href /watch/[object Object]" for the /app router.
+const SLUG_RE = /^[a-z0-9][a-z0-9-]*$/;
+function isValidSlug(s: unknown): s is string {
+  return typeof s === 'string' && SLUG_RE.test(s);
+}
+// Accepts a bare slug string or a legacy channel object { slug: string }.
+function toSlug(v: unknown): string {
+  if (typeof v === 'string') return SLUG_RE.test(v) ? v : '';
+  if (v && typeof v === 'object') {
+    const s = (v as { slug?: unknown }).slug;
+    return typeof s === 'string' && SLUG_RE.test(s) ? s : '';
+  }
+  return '';
+}
+
 type Channel = {
   id: number;
   name: string;
@@ -114,6 +131,10 @@ export default function WatchPlayer({
   prevSlug,
   nextSlug,
 }: WatchPlayerProps) {
+  // Normalize prev/next to plain slug strings (defends against a caller
+  // passing a whole channel object which would stringify to [object Object]).
+  const prev_slug = toSlug(prevSlug);
+  const next_slug = toSlug(nextSlug);
   const { lang } = useLang();
   const t = T[lang] as Record<string, string>;
   const isRo = lang === 'ro';
@@ -419,19 +440,14 @@ export default function WatchPlayer({
         const arr = JSON.parse(raw) as Array<number | string>;
         setIsFav(arr.includes(channel.id) || arr.includes(channel.slug));
       }
-      const recentRaw = JSON.parse(localStorage.getItem('tv_recently_watched') || '[]') as Array<{ id: number }>;
+      const recentRaw: unknown = JSON.parse(localStorage.getItem('tv_recently_watched') || '[]');
       const next = [
-        {
-          id: channel.id,
-          name: channel.name,
-          slug: channel.slug,
-          logo: channel.logo || '',
-          category_name: channel.category_name || '',
-          category_color: channel.category_color || '',
-          views: channel.views || 0,
-        },
-        ...recentRaw.filter((r) => r.id !== channel.id),
-      ].slice(0, 12);
+        isValidSlug(channel.slug) ? channel.slug : String(channel.id ?? ''),
+        ...(Array.isArray(recentRaw) ? recentRaw.map(toSlug) : []),
+      ]
+        .filter(isValidSlug)
+        .filter((s, i, a) => a.indexOf(s) === i)
+        .slice(0, 12);
       localStorage.setItem('tv_recently_watched', JSON.stringify(next));
     } catch {
       /* ignore */

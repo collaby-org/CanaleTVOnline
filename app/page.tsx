@@ -4,6 +4,25 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useFakeViews } from '@/lib/hooks';
 
+// Only valid channel slugs may ever reach a /watch/ href. This rejects
+// polluted localStorage values like "[object Object]" (from an earlier
+// version that String()-ed whole channel objects) which made Next throw
+// "Dynamic href /watch/[object Object]" for the /app router.
+const SLUG_RE = /^[a-z0-9][a-z0-9-]*$/;
+function isValidSlug(s: unknown): s is string {
+  return typeof s === 'string' && SLUG_RE.test(s);
+}
+// Extract a slug string from unknown stored/legacy data: accepts a bare slug
+// string or a legacy channel object { slug: string }, returns "" otherwise.
+function toSlug(v: unknown): string {
+  if (typeof v === 'string') return SLUG_RE.test(v) ? v : '';
+  if (v && typeof v === 'object') {
+    const s = (v as { slug?: unknown }).slug;
+    return typeof s === 'string' && SLUG_RE.test(s) ? s : '';
+  }
+  return '';
+}
+
 interface ChannelItem {
   id: number;
   name: string;
@@ -31,8 +50,10 @@ interface CategoryItem {
 function ChannelCard({ c, fav, onFav }: { c: ChannelItem; fav: boolean; onFav: (id: number) => void }) {
   const { formatted } = useFakeViews(c);
   const router = useRouter();
+  const slug = isValidSlug(c.slug) ? c.slug : String(c.id ?? '');
   const go = () => {
-    router.push(`/watch/${c.slug}`);
+    if (!slug) return;
+    router.push(`/watch/${slug}`);
   };
   const featured = Number((c as { is_featured?: unknown }).is_featured) === 1;
   return (
@@ -153,7 +174,9 @@ export default function Home() {
     const pool = channels.length > 0 ? channels : topLive;
     if (pool.length === 0) return;
     const c = pool[Math.floor(Math.random() * pool.length)];
-    router.push(`/watch/${c.slug}`);
+    const slug = isValidSlug(c.slug) ? c.slug : String(c.id ?? '');
+    if (!slug) return;
+    router.push(`/watch/${slug}`);
   };
 
   useEffect(() => {
@@ -171,8 +194,14 @@ export default function Home() {
         localStorage.setItem('tv_streak', JSON.stringify({ count: 1, lastDate: today }));
         setStreak(1);
       }
-      const rw = JSON.parse(localStorage.getItem('tv_recently_watched') || '[]');
-      setRecent(Array.isArray(rw) ? rw.map(String) : []);
+      const rw: unknown = JSON.parse(localStorage.getItem('tv_recently_watched') || '[]');
+      const cleanedRecent = Array.isArray(rw) ? rw.map(toSlug).filter(isValidSlug) : [];
+      setRecent(cleanedRecent);
+      // Self-heal polluted storage (e.g. "[object Object]" strings or legacy
+      // {id,name,slug} objects) so the bad href can never be rendered again.
+      try {
+        localStorage.setItem('tv_recently_watched', JSON.stringify(cleanedRecent));
+      } catch {}
       setRecentSearches(JSON.parse(localStorage.getItem('tv_recent_searches') || '[]'));
       const rawFavs = JSON.parse(localStorage.getItem('tv_favorites') || '[]');
       setFavs((Array.isArray(rawFavs) ? rawFavs : []).map(Number).filter((n: number) => Number.isFinite(n)));
@@ -380,12 +409,12 @@ export default function Home() {
             )}
 
             <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', marginTop: 14 }}>
-              {hero && (
+              {hero && isValidSlug(hero.slug) && (
                 <Link className="btn-primary" href={`/watch/${hero.slug}`}>
                   ▶ Urmărește Live
                 </Link>
               )}
-              {hero && (
+              {hero && isValidSlug(hero.slug) && (
                 <Link className="btn-ghost" href={`/multistream?a=${hero.slug}`}>
                   ⚡ Mini-Player
                 </Link>
@@ -422,7 +451,9 @@ export default function Home() {
         </form>
         {searchResults.length > 0 && (
           <div style={{ marginTop: 8, display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-            {searchResults.map((c) => (
+            {searchResults
+              .filter((c) => isValidSlug(c.slug))
+              .map((c) => (
               <Link key={c.slug} href={`/watch/${c.slug}`} style={{ color: '#34d399', fontSize: 13 }}>
                 {c.name}
               </Link>
@@ -453,7 +484,10 @@ export default function Home() {
         <section style={{ marginTop: 16 }} aria-label="Vizualizate recent">
           <div className="recent-bar">
             <span className="recent-label">VIZIONATE RECENT</span>
-            {recent.slice(0, 8).map((slug) => {
+            {recent
+              .filter(isValidSlug)
+              .slice(0, 8)
+              .map((slug) => {
               const ch = nowMap[slug];
               return (
                 <Link key={slug} className="recent-chip" href={`/watch/${slug}`}>
@@ -515,15 +549,18 @@ export default function Home() {
       {loading ? (
         <SkeletonGrid />
       ) : showGrouped ? (
-        grouped.map(([slug, list]) => {
+        grouped
+          .filter(([slug]) => isValidSlug(slug))
+          .map(([slug, list]) => {
           const cat = cats.find((c) => c.slug === slug);
+          const cat_slug = isValidSlug(cat?.slug) ? cat!.slug : slug;
           return (
             <section key={slug} style={{ marginTop: 28 }}>
               <div className="section-head">
                 <h2 className="section-title">
                   {cat ? `${cat.icon} ${cat.name}` : slug} <span className="section-count">{list.length}</span>
                 </h2>
-                <Link className="section-link" href={`/categorie/${cat ? cat.slug : slug}`}>
+                <Link className="section-link" href={`/categorie/${cat_slug}`}>
                   Vezi toate →
                 </Link>
               </div>
@@ -541,7 +578,7 @@ export default function Home() {
             <h2 className="section-title">
               {activeCat === 'all' ? '🗂️ Toate' : cats.find((c) => c.slug === activeCat)?.name || activeCat} <span className="section-count">{channels.length}</span>
             </h2>
-            {activeCat !== 'all' && (
+            {activeCat !== 'all' && isValidSlug(activeCat) && (
               <Link className="section-link" href={`/categorie/${activeCat}`}>
                 Vezi toate →
               </Link>
