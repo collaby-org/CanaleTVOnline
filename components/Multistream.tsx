@@ -36,7 +36,8 @@ function SlotPlayer({ channel, muted, onToggleMute, onRemove }: SlotPlayerProps)
     if (!video) return;
     let cancelled = false;
     setStatus('loading');
-    const url = channel.stream_url;
+    const rawUrl = channel.stream_url;
+    const url = rawUrl ? `/api/stream?url=${encodeURIComponent(rawUrl)}` : rawUrl;
 
     const playSafe = () => {
       video.play().catch(() => {});

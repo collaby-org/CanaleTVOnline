@@ -25,5 +25,8 @@ export async function GET(req: Request) {
   }
   if (featured === '1') items = items.filter((c) => c.is_featured === 1);
 
-  return NextResponse.json({ items });
+  // no-store defeats Next's data cache / static optimization so every
+  // response carries the just-minted upstream tokens (15s server cache in
+  // getChannelsWithFreshUrls), never a stale cached body.
+  return NextResponse.json({ items }, { headers: { 'Cache-Control': 'no-store' } });
 }

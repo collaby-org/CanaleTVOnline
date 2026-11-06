@@ -129,6 +129,7 @@ export default function WatchPlayer({
       : [{ id: 0, name: 'Server 1', url: channel.stream_url || '' }];
   const [serverIdx, setServerIdx] = useState(0);
   const sourceUrl = servers[serverIdx]?.url || channel.stream_url || '';
+  const proxiedSourceUrl = sourceUrl ? `/api/stream?url=${encodeURIComponent(sourceUrl)}` : '';
 
   const [status, setStatus] = useState<PlayerStatus>('loading');
   const [errorMsg, setErrorMsg] = useState('');
@@ -254,7 +255,7 @@ export default function WatchPlayer({
           },
         });
         hlsRef.current = hls;
-        hls.loadSource(sourceUrl);
+        hls.loadSource(proxiedSourceUrl);
         hls.attachMedia(video);
 
         hls.on(Hls.Events.MANIFEST_PARSED, (_event: unknown, data: any) => {
@@ -358,7 +359,7 @@ export default function WatchPlayer({
           setErrorMsg(isRo ? 'Eroare la redare.' : 'Playback error.');
         });
       } else if (video.canPlayType('application/vnd.apple.mpegurl')) {
-        video.src = sourceUrl;
+        video.src = proxiedSourceUrl;
         const onCanPlay = () => {
           video.muted = true;
           setMuted(true);
@@ -387,7 +388,7 @@ export default function WatchPlayer({
       setStatus('error');
       setErrorMsg(isRo ? 'Nu s-a putut inițializa player-ul.' : 'Could not initialize the player.');
     }
-  }, [channel.id, sourceUrl, loadHls, isRo]);
+  }, [channel.id, proxiedSourceUrl, loadHls, isRo]);
 
   useEffect(() => {
     startPlayer();
@@ -611,6 +612,10 @@ export default function WatchPlayer({
   }, [togglePlay, toggleMute, toggleFullscreen, toggleTheater, setVol, volume]);
 
   // -- chromecast ---------------------------------------------------------------
+  // Every load path goes through /api/stream — including Cast, which needs an
+  // ABSOLUTE proxied URL (the Cast receiver cannot resolve a relative path).
+  // Never hand it the raw upstream URL: the TV would fetch the upstream
+  // host directly and 403.
   const castMedia = useCallback(async () => {
     try {
       const w = window as any;
@@ -618,12 +623,14 @@ export default function WatchPlayer({
         showOsd(isRo ? '📺 Chromecast indisponibil pe acest browser' : '📺 Chromecast unavailable on this browser');
         return;
       }
+      const castUrl = sourceUrl ? `${window.location.origin}/api/stream?url=${encodeURIComponent(sourceUrl)}` : '';
+      if (!castUrl) return;
       // cast.framework path (Cast Context)
       const ctx = w.cast?.framework?.CastContext?.getInstance?.();
       if (ctx) {
         const session = ctx.getCurrentSession?.();
         if (session?.loadMedia) {
-          const mediaInfo = new w.chrome.cast.media.MediaInfo(sourceUrl, 'application/x-mpegURL');
+          const mediaInfo = new w.chrome.cast.media.MediaInfo(castUrl, 'application/x-mpegURL');
           mediaInfo.metadata = new w.chrome.cast.media.GenericMediaMetadata();
           mediaInfo.metadata.title = `${channel.name} Live`;
           const request = new w.chrome.cast.media.LoadRequest(mediaInfo);
@@ -637,7 +644,7 @@ export default function WatchPlayer({
       }
       // fallback: chrome.cast.media direct
       if (w.chrome?.cast?.media) {
-        const mediaInfo = new w.chrome.cast.media.MediaInfo(sourceUrl, 'application/x-mpegURL');
+        const mediaInfo = new w.chrome.cast.media.MediaInfo(castUrl, 'application/x-mpegURL');
         mediaInfo.metadata = new w.chrome.cast.media.GenericMediaMetadata();
         mediaInfo.metadata.title = `${channel.name} Live`;
         const request = new w.chrome.cast.media.LoadRequest(mediaInfo);

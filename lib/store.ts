@@ -147,6 +147,18 @@ function findChannel(slugOrId: string | number): Channel | undefined {
 // rd.playitforme.online + arwen1.panaka1.cfd URLs are naked in the bulk
 // response too (identical to the seeds), so they are served straight from
 // the local list with no upstream call.
+//
+// WHY THIS DESIGN (three parts):
+// 1) Upstream delegation — the token is an HMAC over the proxy uuid whose
+//    key/algorithm is unknown locally; only upstream's bulk endpoint mints
+//    HMAC-valid tokens, so we never mint (or reuse the stale seed token).
+// 2) Cache-bust — every upstream fetch sends `cache:'no-store'` plus a
+//    `?_nc={ms}` query (mirroring upstream's own 403-reload pattern) so
+//    neither Next's Data Cache nor any edge cache can hand back a
+//    minutes-old token.
+// 3) 15s in-process cache — loadUpstreamChannels() caches the bulk body
+//    for 15s (UPSTREAM_BULK_TTL_MS) to avoid hammering upstream, with a
+//    3s timeout and stale-cache fallback on failure.
 
 const UPSTREAM_CHANNELS_URL = 'https://canaletvlive.online/api/channels';
 const UPSTREAM_BULK_TTL_MS = 15000;
@@ -206,17 +218,15 @@ function isTvProxyUrl(url: string): boolean {
  * - tv family + fresh upstream token → fresh (upstream-minted, HMAC-valid)
  * - tv family + fresh null/empty → naked seed (stripToken drops the stale
  *   `1793831492238-…` token baked into data/channels.json)
- * - rd / arwen (non-tv) → seed as-is (already naked upstream; stripped
- *   defensively so no token can leak through a fresh value either)
+ * - rd / arwen (non-tv) → seed as-is (already naked upstream)
  */
 export function sanitizeStreamUrl(
   ch: { stream_url: string },
   fresh?: string | null
 ): string {
-  if (fresh) {
-    return isTvProxyUrl(ch.stream_url) ? fresh : stripToken(fresh);
+  if (isTvProxyUrl(ch.stream_url)) {
+    return fresh || stripToken(ch.stream_url);
   }
-  if (isTvProxyUrl(ch.stream_url)) return stripToken(ch.stream_url);
   return ch.stream_url;
 }
 
