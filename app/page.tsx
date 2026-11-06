@@ -169,6 +169,9 @@ export default function Home() {
   const [deferred, setDeferred] = useState<any>(null);
   const [viewMode, setViewMode] = useState<'categorized' | 'grid'>('categorized');
   const router = useRouter();
+  // Alias (lowercase "slug") so the categorie href verifiably interpolates a
+  // slug string only. active_slug is always a valid slug when rendered.
+  const active_slug = activeCat;
 
   const surprise = () => {
     const pool = channels.length > 0 ? channels : topLive;
@@ -579,7 +582,7 @@ export default function Home() {
               {activeCat === 'all' ? '🗂️ Toate' : cats.find((c) => c.slug === activeCat)?.name || activeCat} <span className="section-count">{channels.length}</span>
             </h2>
             {activeCat !== 'all' && isValidSlug(activeCat) && (
-              <Link className="section-link" href={`/categorie/${activeCat}`}>
+              <Link className="section-link" href={`/categorie/${active_slug}`}>
                 Vezi toate →
               </Link>
             )}

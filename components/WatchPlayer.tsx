@@ -1480,7 +1480,9 @@ export default function WatchPlayer({
                   </Link>
                 )}
                 {channel.country && <span style={{ padding: '2px 8px', background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.07)', borderRadius: 7, fontSize: 11, color: '#a1a1aa', fontWeight: 600 }}>🌍 {channel.country}</span>}
-                <Link href={`/program/${channel.slug}/azi`} style={{ padding: '2px 9px', background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 7, fontSize: 11, color: '#cbd5e1', fontWeight: 600 }}>📅 {isRo ? 'Ghid TV' : 'TV Guide'}</Link>
+                {isValidSlug(channel.slug) && (
+                  <Link href={`/program/${channel.slug}/azi`} style={{ padding: '2px 9px', background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 7, fontSize: 11, color: '#cbd5e1', fontWeight: 600 }}>📅 {isRo ? 'Ghid TV' : 'TV Guide'}</Link>
+                )}
               </div>
             </div>
           </div>
@@ -1498,7 +1500,7 @@ export default function WatchPlayer({
             <div style={{ height: 4, background: 'rgba(255,255,255,0.08)', borderRadius: 99, overflow: 'hidden' }}>
               <div style={{ height: '100%', background: 'linear-gradient(90deg, #10b981, #f59e0b)', borderRadius: 99, width: `${currentProgress}%`, transition: 'width 60s linear' }} />
             </div>
-            {nextEpg && (
+            {nextEpg && isValidSlug(channel.slug) && (
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: 7, fontSize: 11.5, color: '#71717a' }}>
                 <span>
                   {isRo ? 'Urmează la' : 'Up next at'} <strong style={{ color: '#cbd5e1' }}>{fmtTime(nextEpg.start_time)}</strong>: {nextEpg.title}
@@ -1558,7 +1560,9 @@ export default function WatchPlayer({
                 📅 {isRo ? `Program TV — Astăzi` : `TV Schedule — Today`} — {channel.name}
               </h2>
             </div>
-            <Link href={`/program/${channel.slug}/azi`} style={{ fontSize: 11.5, fontWeight: 700, color: '#10b981' }}>Vezi toate →</Link>
+            {isValidSlug(channel.slug) && (
+              <Link href={`/program/${channel.slug}/azi`} style={{ fontSize: 11.5, fontWeight: 700, color: '#10b981' }}>Vezi toate →</Link>
+            )}
           </div>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 6, maxHeight: 400, overflowY: 'auto' }}>
             {epg.map((entry) => {
